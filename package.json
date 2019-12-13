@@ -1,0 +1,29 @@
+{
+  "name": "metaball",
+  "version": "1.0.0",
+  "main": "index.js",
+  "author": "Grady Simon <grady.hsimon@gmail.com>",
+  "license": "MIT",
+  "devDependencies": {
+    "parcel-bundler": "^1.12.4",
+    "parcel-plugin-clean-dist": "^0.0.6",
+    "parcel-plugin-static-files-copy": "^2.2.1",
+    "prettier": "^1.18.2",
+    "source-map-support": "^0.5.13",
+    "tslint": "^5.18.0",
+    "tslint-config-prettier": "^1.18.0",
+    "tsutils": "^3.17.1",
+    "typescript": "^3.7.3"
+  },
+  "scripts": {
+    "clean": "rm -rf dist",
+    "build": "parcel build src/index.html",
+    "lint": "tslint -t stylish --project \"tsconfig.json\"",
+    "watch": "parcel watch src/index.html",
+    "serve": "parcel src/index.html"
+  },
+  "staticFiles": {
+    "staticPath": "static/",
+    "watcherGlob": "**"
+  }
+}

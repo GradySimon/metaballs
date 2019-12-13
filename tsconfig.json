@@ -1,0 +1,33 @@
+{
+  "compilerOptions": {
+    "target": "es6",
+    "module": "commonjs",
+    "moduleResolution": "node",
+    "allowSyntheticDefaultImports": false,
+    "allowJs": false,
+    "importHelpers": true,
+    "alwaysStrict": true,
+    "inlineSourceMap": true,
+    "forceConsistentCasingInFileNames": true,
+    "noFallthroughCasesInSwitch": true,
+    "noImplicitReturns": true,
+    "noUnusedLocals": true,
+    "noUnusedParameters": true,
+    "noImplicitAny": true,
+    "noImplicitThis": false,
+    "lib": ["es2015", "es2016", "dom", "es2018.promise"],
+    "outDir": "../dist",
+    "strictNullChecks": false,
+    "typeRoots" : ["./node_modules/@types"]
+  },
+  "parcel-plugin-typescript": {
+    // If true type-checking is disabled
+    "transpileOnly": false
+  },
+  "include": [
+    "src/**/*",
+  ],
+  "exclude": [
+    "node_modules"
+  ]
+}
