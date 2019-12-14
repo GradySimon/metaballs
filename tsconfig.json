@@ -8,24 +8,24 @@
     "importHelpers": true,
     "alwaysStrict": true,
     "inlineSourceMap": true,
-    "forceConsistentCasingInFileNames": true,
     "noFallthroughCasesInSwitch": true,
     "noImplicitReturns": true,
     "noUnusedLocals": true,
     "noUnusedParameters": true,
     "noImplicitAny": true,
     "noImplicitThis": false,
-    "lib": ["es2015", "es2016", "dom", "es2018.promise"],
+    "lib": ["es2015", "es2016", "dom"],
     "outDir": "../dist",
     "strictNullChecks": false,
     "typeRoots" : ["./node_modules/@types"]
   },
+  "defaultSeverity": "error",
   "parcel-plugin-typescript": {
     // If true type-checking is disabled
     "transpileOnly": false
   },
   "include": [
-    "src/**/*",
+    "src/**/*"
   ],
   "exclude": [
     "node_modules"

@@ -755,10 +755,27 @@
     "@parcel/utils" "^1.11.0"
     physical-cpu-count "^2.0.0"
 
+"@types/offscreencanvas@^2019.6.0":
+  version "2019.6.0"
+  resolved "https://registry.yarnpkg.com/@types/offscreencanvas/-/offscreencanvas-2019.6.0.tgz#a91e3df1aabdf297f6b903aadce01b33e6844bdf"
+  integrity sha512-Mf1bgQd2si9fCdIhEIG5tq3PWEyBD8j6stPSQRsia3kKNIjYD5uBGbBmRFd0JqsVTu8K6a+YTQ3zCz+2dUD4uQ==
+  dependencies:
+    "@types/webgl2" "*"
+
 "@types/q@^1.5.1":
   version "1.5.2"
   resolved "https://registry.yarnpkg.com/@types/q/-/q-1.5.2.tgz#690a1475b84f2a884fd07cd797c00f5f31356ea8"
   integrity sha512-ce5d3q03Ex0sy4R14722Rmt6MT07Ua+k4FwDfdcToYJcMKNtRVQvJ6JCAPdAmAnbRb6CsX6aYb9m96NGod9uTw==
+
+"@types/webgl2@*", "@types/webgl2@^0.0.5":
+  version "0.0.5"
+  resolved "https://registry.yarnpkg.com/@types/webgl2/-/webgl2-0.0.5.tgz#dd925e20ab8ace80eb4b1e46fda5b109c508fb0d"
+  integrity sha512-oGaKsBbxQOY5+aJFV3KECDhGaXt+yZJt2y/OZsnQGLRkH6Fvr7rv4pCt3SRH1somIHfej/c4u7NSpCyd9x+1Ow==
+
+"@types/webvr-api@^0.0.35":
+  version "0.0.35"
+  resolved "https://registry.yarnpkg.com/@types/webvr-api/-/webvr-api-0.0.35.tgz#13b3cf1cd90544524d932ed36e6b109a2ec73d22"
+  integrity sha512-jdpJqweU5v7hYwUlHKQU6wzjQvUfBfmTz4WBwVd/5PVGYalKm6YbEnM/3T+M+QzRYf2R/ojBGnrWpjHBZFR3Og==
 
 abab@^2.0.0:
   version "2.0.3"
@@ -4981,6 +4998,11 @@ terser@^4.3.9:
     commander "^2.20.0"
     source-map "~0.6.1"
     source-map-support "~0.5.12"
+
+three@^0.110.0:
+  version "0.110.0"
+  resolved "https://registry.yarnpkg.com/three/-/three-0.110.0.tgz#8719591de1336269113ee79f4268ba247b2324f8"
+  integrity sha512-wlurH8XBO9Sd5VIw8nBa+taLR20kqaI4e9FiuMh6tqK8eOS2q2R+ZoUyufbyDTVTHhs8GiTbv0r2CMLkwerFJg==
 
 through2@^2.0.0, through2@~2.0.3:
   version "2.0.5"
