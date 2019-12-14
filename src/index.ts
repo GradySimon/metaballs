@@ -1,8 +1,13 @@
 import * as THREE from 'three';
 
-console.log('hello, world!');
+interface AnimationState {
+    scene: THREE.Scene;
+    camera: THREE.Camera;
+    renderer: THREE.Renderer;
+    objs: Record<string, any>;
+}
 
-const init = () => {
+const init = (): AnimationState => {
     let scene = new THREE.Scene();
 
     const aspectRatio = window.innerWidth / window.innerHeight;
@@ -18,15 +23,32 @@ const init = () => {
     let cube = new THREE.Mesh(geometry, material);
     scene.add(cube);
 
-    const animate = () {
-        requestAnimationFrame(animate);
+    return {
+        scene: scene,
+        camera: camera,
+        renderer: renderer,
+        objs: { cube: cube }
+    };
 
-        cube.rotation.x += 0.01;
-        cube.rotation.y += 0.01;
-
-        renderer.render(scene, camera);
-    }
-    animate();
 };
 
-init();
+const update = (state: AnimationState): AnimationState => {
+    state.objs.cube.rotation.x += 0.01;
+    state.objs.cube.rotation.y += 0.01;
+    return state;
+}
+
+
+const animate = (state: AnimationState) => {
+    state = update(state);
+    state.renderer.render(state.scene, state.camera);
+    requestAnimationFrame(() => { animate(state); });
+}
+
+const start = () => {
+    let state = init();
+    animate(state);
+}
+
+start();
+console.log('Animation begun.');
