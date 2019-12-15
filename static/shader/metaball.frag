@@ -3,8 +3,9 @@ precision mediump float;
 #endif
 
 #define MAX_NUM_METABALLS 2
-#define THRESHOLD 0.424
 #define RADIUS 0.065
+
+#define DEBUG_DENSITY false
 
 uniform vec2 u_resolution;
 uniform vec2 u_mouse;
@@ -20,6 +21,13 @@ vec4 grayscale(float value) {
 }
 
 vec4 color_for_density(float density) {
+    if (DEBUG_DENSITY) {
+      if ((u_threshold - 0.005 < density)
+           && (density < u_threshold + 0.005)) {
+        return vec4(1., 0., 0., 1.);
+      }
+      return grayscale(density);
+    }
     if (density > u_threshold) {
         return grayscale(0.0);
     }
@@ -27,14 +35,17 @@ vec4 color_for_density(float density) {
 }
 
 void main() {
+    // vec2 frag_pos = gl_FragCoord.xy / vec2(u_resolution[0], u_resolution[0]);
+    float aspect_ratio = u_resolution.x / u_resolution.y;
     vec2 frag_pos = gl_FragCoord.xy / u_resolution;
+    frag_pos.y /= aspect_ratio;
 
     float density = 0.;
     for (int i = 0; i < MAX_NUM_METABALLS; i++) {
         if (i >= u_num_metaballs) {
           continue;
         }
-        vec2 pos = u_metaball_pos[i] / u_resolution;
+        vec2 pos = u_metaball_pos[i];
         float single_ball_density =
           (u_metaball_radius[i] * u_metaball_radius[i])
           / dot((frag_pos - pos), (frag_pos - pos));
