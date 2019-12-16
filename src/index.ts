@@ -177,25 +177,25 @@ const metaballState = (state: AnimationState): Metaball[] => {
   // metaballs.push({ position: state.mouse, radius: 0.12 });
   const num_balls = 8;
   const period = 8000;
-  const radius = 0.75;
+  const radius = 0.77;
   metaballs.push({
     position:
-      circularOrbit(state.time.elapsed { period: 32000, radius: radius - 0.06 }),
+      circularOrbit(state.time.elapsed { period: 32000, radius: radius - 0.05 }),
     radius: 0.08
   });
   metaballs.push({
     position:
       circularOrbit(state.time.elapsed { period: 32000, radius: 0.00 }),
-    radius: 0.155
+    radius: 0.1688
   });
   for (let i = 0; i < num_balls; i++) {
     metaballs.push({
       position: circularOrbit(state.time.elapsed, {
         period: period,
         tOffset: (period / num_balls) * i,
-        radius: Math.min(radius, radius / state.aspectRatio)
+        radius: radius
       }),
-      radius: 0.05,
+      radius: 0.06,
     });
   }
   // if (state.time.elapsed % 30 === 0) {
