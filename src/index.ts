@@ -177,10 +177,23 @@ const circularOrbit = (t: number, {
   });
 }
 
+const orbitalRing = (t: number, orbit: CircularOrbit,
+  num_balls: number, ball_radius: number): Metaball[] {
+  let balls: Metaball[] = [];
+  for (let i = 0; i < num_balls; i++) {
+    orbit.tOffset = i * (orbit.period / num_balls)
+    balls.push({
+      position: circularOrbit(t, orbit),
+      radius: ball_radius,
+    });
+  }
+  return balls;
+}
+
 const metaballState = (state: AnimationState): Metaball[] => {
   let metaballs: Metaball[] = [];
-  const num_balls = 8;
-  const period = 8000;
+  const num_balls = 4;
+  const period = 16000;
   const radius = 0.77;
   metaballs.push({ position: state.mouse, radius: 0.06 });
   metaballs.push({
@@ -193,16 +206,10 @@ const metaballState = (state: AnimationState): Metaball[] => {
       circularOrbit(state.time.elapsed { period: 32000, radius: 0.00 }),
     radius: 0.1688
   });
-  for (let i = 0; i < num_balls; i++) {
-    metaballs.push({
-      position: circularOrbit(state.time.elapsed, {
-        period: period,
-        tOffset: (period / num_balls) * i,
-        radius: radius
-      }),
-      radius: 0.06,
-    });
-  }
+  metaballs.push(...orbitalRing(state.time.elapsed,
+    { period: period, radius: radius }, num_balls, 0.06));
+  metaballs.push(...orbitalRing(state.time.elapsed,
+    { period: -period, radius: radius }, num_balls, 0.06));
   // if (state.time.elapsed % 30 === 0) {
   //   console.log(metaballs[0].position)
   //   console.log(metaballs);
