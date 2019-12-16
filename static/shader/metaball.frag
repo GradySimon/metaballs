@@ -2,7 +2,7 @@
 precision mediump float;
 #endif
 
-#define MAX_NUM_METABALLS 2
+#define MAX_NUM_METABALLS 10
 #define RADIUS 0.065
 
 #define DEBUG_DENSITY false
@@ -31,13 +31,14 @@ vec4 color_for_density(float density) {
     if (density > u_threshold) {
         return grayscale(0.0);
     }
-    return grayscale(0.95);
+    return grayscale(0.92);
 }
 
 void main() {
     // vec2 frag_pos = gl_FragCoord.xy / vec2(u_resolution[0], u_resolution[0]);
     float aspect_ratio = u_resolution.x / u_resolution.y;
-    vec2 frag_pos = gl_FragCoord.xy / u_resolution;
+    vec2 frag_pos = 2. * (gl_FragCoord.xy - u_resolution / 2.)
+                    / u_resolution;
     frag_pos.y /= aspect_ratio;
 
     float density = 0.;

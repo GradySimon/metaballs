@@ -5,8 +5,10 @@ interface ShaderState {
   mesh: THREE.Mesh;
 }
 
+type Point = [number, number];
+
 interface Metaball {
-  position: [number, number];
+  position: Point;
   radius: number;
 }
 
@@ -16,9 +18,12 @@ interface AnimationState {
   renderer: THREE.Renderer;
   shader: ShaderState;
   aspectRatio: number;
+  mouse: Point;
   metaballs?: Metaball[];
   time: { start: number, elapsed: number };
 }
+
+const aspectRatio = (): number => window.innerWidth / window.innerHeight;
 
 const fetchText = async (url: string): Promise<string> => {
   const response = await fetch(url);
@@ -45,7 +50,7 @@ const initShader = async () => {
       type: "int", value: 2
     },
     u_threshold: {
-      type: "float", value: 0.3
+      type: "float", value: Number.POSITIVE_INFINITY,
     },
   };
   let material = new THREE.ShaderMaterial({
@@ -55,6 +60,22 @@ const initShader = async () => {
   });
   let mesh = new THREE.Mesh(geometry, material);
   return { uniforms, mesh };
+}
+
+const windowSizeUpdater = (state: AnimationState): (e: UIEvent) => void => {
+  return (e: UIEvent) => {
+    state.renderer.setSize(window.innerWidth, window.innerHeight);
+  }
+}
+
+const mouseUpdater = (state: AnimationState): (e: MouseEvent) => void => {
+  return (e: MouseEvent) => {
+    state.mouse = [
+      2 * (e.pageX - (window.innerWidth / 2)) / window.innerWidth,
+      2 * ((window.innerHeight - e.pageY) - (window.innerHeight / 2))
+      / (window.innerHeight / state.aspectRatio)
+    ];
+  };
 }
 
 const init = async (): Promise<AnimationState> => {
@@ -71,61 +92,124 @@ const init = async (): Promise<AnimationState> => {
   renderer.setPixelRatio(window.devicePixelRatio);
   renderer.setSize(window.innerWidth, window.innerHeight);
   document.body.appendChild(renderer.domElement);
-
-  return {
+  let state: AnimationState = {
     scene,
     camera,
     renderer,
     aspectRatio,
+    mouse: [0, 0],
     shader: { uniforms, mesh },
     time: { start: Date.now(), elapsed: 0 }
   };
+  document.onmousemove = mouseUpdater(state);
+  window.addEventListener('resize', windowSizeUpdater(state), false);
+  return state;
 };
 
 interface Oscillation {
-  inScale: number;
-  inOffset: number;
-  outMin: number;
-  outMax: number;
-  fn: (x: number) => number;
+  period?: number;
+  tOffset?: number;
+  outMin?: number;
+  outMax?: number;
+  fn?: (x: number) => number;
 }
 
 const oscillate = (t: number, {
-  inScale = 1 / 1000,
-  inOffset = 0,
-  outMin = 0,
-  outMax = 1,
+  period = 4000,
+  tOffset = 0,
+  outMin = -0.5,
+  outMax = 0.5,
   fn = Math.sin,
 }: Oscillation): number => {
   const range = outMax - outMin;
-  return fn(t * inScale + inOffset) * range / 2 + (range / 2) + outMin;
+  const tScale = 2 * Math.PI / period;
+  return fn((t + tOffset) * tScale) * range / 2 + (range / 2) + outMin;
 };
 
+
+interface Orbit {
+  period?: number,
+  tOffset?: number,
+  xAxis?: number,
+  yAxis?: number,
+}
+
+const orbit = (t: number, {
+  period = 4000,
+  tOffset = 0,
+  xAxis = 1,
+  yAxis = 1,
+}: Orbit): Point => {
+  return [
+    oscillate(t,
+      {
+        period: period,
+        tOffset: tOffset,
+        outMin: -xAxis,
+        outMax: xAxis,
+      }),
+    oscillate(t,
+      {
+        period: period,
+        tOffset: tOffset,
+        outMin: -yAxis,
+        outMax: yAxis,
+        fn: Math.cos
+      })];
+}
+
+interface CircularOrbit extends Orbit {
+  radius?: number;
+};
+
+const circularOrbit = (t: number, {
+  period = 4000, tOffset = 0, radius = 1,
+}: CircularOrbit): Point => {
+  return orbit(t, {
+    period, tOffset,
+    xAxis: radius,
+    yAxis: radius,
+  });
+}
+
 const metaballState = (state: AnimationState): Metaball[] => {
-  console.log([oscillate(state.time.elapsed, {}),
-  oscillate(state.time.elapsed, { fn: Math.cos })])
-  let metaballs: Metaball[] = [
-    {
-      position: [
-        oscillate(state.time.elapsed,
-          {
-            outMin: 0.1,
-            outMax: 1 / state.aspectRatio
-          }),
-        oscillate(state.time.elapsed,
-          {
-            outMin: 0.1,
-            outMax: 1 / state.aspectRatio, fn: Math.cos
-          })],
-      radius: 0.02;
-    }, { position: [0.2, 0.2], radius: 0.02 },
-  ];
+  let metaballs: Metaball[] = [];
+  // metaballs.push({ position: state.mouse, radius: 0.12 });
+  const num_balls = 8;
+  const period = 8000;
+  const radius = 0.75;
+  metaballs.push({
+    position:
+      circularOrbit(state.time.elapsed { period: 32000, radius: radius - 0.06 }),
+    radius: 0.08
+  });
+  metaballs.push({
+    position:
+      circularOrbit(state.time.elapsed { period: 32000, radius: 0.00 }),
+    radius: 0.155
+  });
+  for (let i = 0; i < num_balls; i++) {
+    metaballs.push({
+      position: circularOrbit(state.time.elapsed, {
+        period: period,
+        tOffset: (period / num_balls) * i,
+        radius: Math.min(radius, radius / state.aspectRatio)
+      }),
+      radius: 0.05,
+    });
+  }
+  // if (state.time.elapsed % 30 === 0) {
+  //   console.log(metaballs[0].position)
+  //   console.log(metaballs);
+  // }
   return metaballs;
 }
 
 interface MetaballUniformValues {
+  u_num_metaballs: number;
   u_metaball_pos: number[];
   u_metaball_radius: number[];
+  u_threshold: number;
 }
 
 const metaballsToUniforms = (metaballs: Metaball[]): MetaballUniformValues => {
@@ -136,18 +220,32 @@ const metaballsToUniforms = (metaballs: Metaball[]): MetaballUniformValues => {
     radii.push(metaball.radius);
   }
   return {
+    u_num_metaballs: metaballs.length,
     u_metaball_pos: flat_positions,
     u_metaball_radius: radii,
+    u_threshold: 0.3,
   }
 }
 
 const update = (state: AnimationState): AnimationState => {
   state.time.elapsed = Date.now() - state.time.start;
 
+  state.shader.uniforms.u_resolution.value.x = state.renderer.domElement.width;
+  state.shader.uniforms.u_resolution.value.y = state.renderer.domElement.height;
+
+  state.aspectRatio = aspectRatio();
+
   const metaballs = metaballState(state);
-  const { u_metaball_pos, u_metaball_radius } = metaballsToUniforms(metaballs);
+  const {
+    u_num_metaballs,
+    u_metaball_pos,
+    u_metaball_radius,
+    u_threshold } =
+    metaballsToUniforms(metaballs);
+  state.shader.uniforms['u_num_metaballs'].value = u_num_metaballs;
   state.shader.uniforms['u_metaball_pos'].value = u_metaball_pos;
   state.shader.uniforms['u_metaball_radius'].value = u_metaball_radius;
+  state.shader.uniforms['u_threshold'].value = u_threshold;
 
   return state;
 }
