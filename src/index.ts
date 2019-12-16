@@ -73,8 +73,13 @@ const mouseUpdater = (state: AnimationState): (e: MouseEvent) => void => {
     state.mouse = [
       2 * (e.pageX - (window.innerWidth / 2)) / window.innerWidth,
       2 * ((window.innerHeight - e.pageY) - (window.innerHeight / 2))
-      / (window.innerHeight / state.aspectRatio)
+      / window.innerHeight
     ];
+    if (state.aspectRatio > 1) {
+      state.mouse[0] *= state.aspectRatio;
+    } else {
+      state.mouse[1] /= state.aspectRatio;
+    }
   };
 }
 
@@ -174,13 +179,13 @@ const circularOrbit = (t: number, {
 
 const metaballState = (state: AnimationState): Metaball[] => {
   let metaballs: Metaball[] = [];
-  // metaballs.push({ position: state.mouse, radius: 0.12 });
   const num_balls = 8;
   const period = 8000;
   const radius = 0.77;
+  metaballs.push({ position: state.mouse, radius: 0.06 });
   metaballs.push({
     position:
-      circularOrbit(state.time.elapsed { period: 32000, radius: radius - 0.05 }),
+      circularOrbit(state.time.elapsed, { period: 32000, radius: radius - 0.05 }),
     radius: 0.08
   });
   metaballs.push({

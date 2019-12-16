@@ -2,7 +2,7 @@
 precision mediump float;
 #endif
 
-#define MAX_NUM_METABALLS 10
+#define MAX_NUM_METABALLS 25
 #define RADIUS 0.065
 
 #define DEBUG_DENSITY false
@@ -40,8 +40,6 @@ void main() {
     float aspect_ratio = u_resolution.x / u_resolution.y;
     vec2 frag_pos = 2. * (gl_FragCoord.xy - u_resolution / 2.)
                     / u_resolution;
-    // frag_pos.x /= max(1., aspect_ratio);
-    // frag_pos.y /= min(1., aspect_ratio);
     if (u_resolution.x < u_resolution.y) {
       frag_pos.y /= aspect_ratio;
     } else {
