@@ -7,7 +7,15 @@ interface ShaderState {
 
 type Point = [number, number];
 
+enum MetaballKind {
+  QUADRATIC = 1,
+  NEG_QUADRATIC = 2,
+  LINEAR = 3,
+  ZERO = 4,
+}
+
 interface Metaball {
+  kind?: MetaballKind;
   position: Point;
   radius: number;
 }
@@ -42,6 +50,7 @@ const initShader = async () => {
         window.innerHeight)
     },
     u_mouse: { type: "v2", value: new THREE.Vector2() },
+    u_metaball_kind: { type: "intv", value: [] },
     u_metaball_pos: { type: "v2v", value: [] },
     u_metaball_radius: {
       type: "fv", value: []
@@ -177,39 +186,52 @@ const circularOrbit = (t: number, {
   });
 }
 
-const orbitalRing = (t: number, orbit: CircularOrbit,
-  num_balls: number, ball_radius: number): Metaball[] {
-  let balls: Metaball[] = [];
-  for (let i = 0; i < num_balls; i++) {
-    orbit.tOffset = i * (orbit.period / num_balls)
-    balls.push({
-      position: circularOrbit(t, orbit),
-      radius: ball_radius,
-    });
+const orbitalRing = (t: number,
+  count: number,
+  orbit: CircularOrbit): Point[] {
+  let points: Point[] = [];
+  for (let i = 0; i < count; i++) {
+    orbit.tOffset = i * (orbit.period / count)
+    points.push(circularOrbit(t, orbit));
   }
-  return balls;
+  return points;
 }
+
+const ballsLike =
+  (positions: Point[],
+    radius: number,
+    kind = MetaballKind.QUADRATIC): Metaball[] => {
+    let balls: Metaball[] = [];
+    for (const position of positions) {
+      balls.push({ position, radius, kind });
+    }
+    return balls;
+  }
 
 const metaballState = (state: AnimationState): Metaball[] => {
   let metaballs: Metaball[] = [];
   const num_balls = 4;
   const period = 16000;
   const radius = 0.77;
-  metaballs.push({ position: state.mouse, radius: 0.06 });
+  // metaballs.push({ position: state.mouse, radius: 0.06 });
   metaballs.push({
     position:
-      circularOrbit(state.time.elapsed, { period: 32000, radius: radius - 0.05 }),
-    radius: 0.08
+      circularOrbit(state.time.elapsed, { period: 32000, radius: radius }),
+    radius: 0.07
   });
   metaballs.push({
     position:
       circularOrbit(state.time.elapsed { period: 32000, radius: 0.00 }),
-    radius: 0.1688
+    radius: 0.20
   });
-  metaballs.push(...orbitalRing(state.time.elapsed,
-    { period: period, radius: radius }, num_balls, 0.06));
-  metaballs.push(...orbitalRing(state.time.elapsed,
-    { period: -period, radius: radius }, num_balls, 0.06));
+  metaballs.push(...ballsLike(
+    orbitalRing(state.time.elapsed, num_balls
+                { period: period, radius: radius }), 0.055, MetaballKind.NEG_QUADRATIC));
+  metaballs.push(...ballsLike(
+    orbitalRing(state.time.elapsed, num_balls
+                { period: -period, radius: radius - 0.06 }), 0.055, MetaballKind.QUADRATIC));
+  // metaballs.push(...orbitalRing(state.time.elapsed,
+  //   { period: -period, radius: radius }, num_balls, 0.0634));
   // if (state.time.elapsed % 30 === 0) {
   //   console.log(metaballs[0].position)
   //   console.log(metaballs);
@@ -217,22 +239,27 @@ const metaballState = (state: AnimationState): Metaball[] => {
   return metaballs;
 }
 
+
 interface MetaballUniformValues {
   u_num_metaballs: number;
+  u_metaball_kind: MetaballKind[];
   u_metaball_pos: number[];
   u_metaball_radius: number[];
   u_threshold: number;
 }
 
 const metaballsToUniforms = (metaballs: Metaball[]): MetaballUniformValues => {
+  let kinds: MetaballKind[] = [];
   let flat_positions: number[] = [];
   let radii: number[] = [];
   for (const metaball of metaballs) {
+    kinds.push(metaball.kind || MetaballKind.QUADRATIC);
     flat_positions.push(metaball.position[0], metaball.position[1]);
     radii.push(metaball.radius);
   }
   return {
     u_num_metaballs: metaballs.length,
+    u_metaball_kind: kinds,
     u_metaball_pos: flat_positions,
     u_metaball_radius: radii,
     u_threshold: 0.3,
@@ -242,19 +269,23 @@ const metaballsToUniforms = (metaballs: Metaball[]): MetaballUniformValues => {
 const update = (state: AnimationState): AnimationState => {
   state.time.elapsed = Date.now() - state.time.start;
 
-  state.shader.uniforms.u_resolution.value.x = state.renderer.domElement.width;
-  state.shader.uniforms.u_resolution.value.y = state.renderer.domElement.height;
+  state.shader.uniforms.u_resolution.value.x =
+    state.renderer.domElement.width;
+  state.shader.uniforms.u_resolution.value.y =
+    state.renderer.domElement.height;
 
   state.aspectRatio = aspectRatio();
 
   const metaballs = metaballState(state);
   const {
     u_num_metaballs,
+    u_metaball_kind,
     u_metaball_pos,
     u_metaball_radius,
     u_threshold } =
     metaballsToUniforms(metaballs);
   state.shader.uniforms['u_num_metaballs'].value = u_num_metaballs;
+  state.shader.uniforms['u_metaball_kind'].value = u_metaball_kind;
   state.shader.uniforms['u_metaball_pos'].value = u_metaball_pos;
   state.shader.uniforms['u_metaball_radius'].value = u_metaball_radius;
   state.shader.uniforms['u_threshold'].value = u_threshold;
