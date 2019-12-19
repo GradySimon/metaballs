@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+// import * as gifjs from './assets/js/gif'
 
 interface ShaderState {
   uniforms: Record<string, any>;
@@ -24,6 +25,7 @@ interface AnimationState {
   scene: THREE.Scene;
   camera: THREE.Camera;
   renderer: THREE.Renderer;
+  canvas: HTMLCanvasElement;
   shader: ShaderState;
   aspectRatio: number;
   mouse: Point;
@@ -105,11 +107,13 @@ const init = async (): Promise<AnimationState> => {
   let renderer = new THREE.WebGLRenderer();
   renderer.setPixelRatio(window.devicePixelRatio);
   renderer.setSize(window.innerWidth, window.innerHeight);
-  document.body.appendChild(renderer.domElement);
+  const canvas = renderer.domElement;
+  document.body.appendChild(canvas);
   let state: AnimationState = {
     scene,
     camera,
     renderer,
+    canvas,
     aspectRatio,
     mouse: [0, 0],
     shader: { uniforms, mesh },
@@ -293,16 +297,61 @@ const update = (state: AnimationState): AnimationState => {
   return state;
 }
 
-const animate = (state: AnimationState) => {
+
+const animate = (state: AnimationState,
+  capturer?: any,
+  capturerStarted?: boolean) => {
   state = update(state);
   state.renderer.render(state.scene, state.camera);
-  requestAnimationFrame(() => { animate(state); });
-}
+  if (capturer !== undefined) {
+    if (!capturerStarted) {
+      capturer.start();
+      capturerStarted = true;
+    }
+    capturer.capture(state.canvas);
+    // if (state.time.elapsed >= 4000) {
+    //   capturer.stop();
+    //   capturer.save((blob: Blob) => download(blob, 'animation.gif', 'image/gif'));
+    //   return;
+  }
+  requestAnimationFrame(() => {
+    animate(state, capturer, capturerStarted);
+  });
+};
 
 const start = async () => {
   let state = await init();
   animate(state);
 }
 
-start();
+interface CaptureArgs {
+  // See https://github.com/spite/ccapture.js
+  framerate: number;
+  format: 'webm' | 'gif' | 'png' | 'jpg' | 'ffmpegserver';
+  timeLimit?: number; // Seconds until stop and download
+  motionBlurFrames?: number;
+  verbose?: boolean;
+  display?: boolean; // Adds a widget with capturing info
+  autoSaveTime?: number; // Interval of seconds between saves
+  startTime?: number; // Seconds to jump forawrd at start
+  workersPath?: string;
+}
+
+const captureArgs: CaptureArgs = {
+  framerate: 60,
+  timeLimit: 4,
+  format: 'gif',
+  display: true,
+  verbose: true,
+  workersPath: "http://0.0.0.0:1234/js/"
+}
+
+const startAndCapture = async () => {
+  let state = await init();
+  let capturer = new CCapture(captureArgs);
+  animate(state, capturer);
+}
+
+// start();
+startAndCapture();
 console.log('Animation begun.');
