@@ -5,7 +5,8 @@ precision mediump float;
 #define MAX_NUM_METABALLS 25
 #define RADIUS 0.065
 
-#define DEBUG_DENSITY false
+#define NO_THRESHOLDING false
+#define SHOW_THRESHOLD true
 
 uniform vec2 u_resolution;
 uniform vec2 u_mouse;
@@ -27,8 +28,8 @@ vec4 grayscale(float value) {
 }
 
 vec4 color_for_density(float density) {
-    if (DEBUG_DENSITY) {
-      if ((u_threshold < density)
+    if (NO_THRESHOLDING) {
+      if (SHOW_THRESHOLD && (u_threshold < density)
            && (density < u_threshold + 0.005)) {
         // return vec4(1., 0., 0., 1.);
         return grayscale(density - 0.05);
@@ -38,7 +39,7 @@ vec4 color_for_density(float density) {
     if (density > u_threshold) {
         return grayscale(0.0);
     }
-    return grayscale(0.91);
+    return grayscale(0.89);
 }
 
 float quadratic_density(vec2 frag_pos, vec2 pos, float radius) {

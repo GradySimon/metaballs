@@ -226,14 +226,20 @@ const metaballState = (state: AnimationState): Metaball[] => {
   metaballs.push({
     position:
       circularOrbit(state.time.elapsed { period: 32000, radius: 0.00 }),
-    radius: 0.25
+    radius: 0.27
   });
   metaballs.push(...ballsLike(
     orbitalRing(state.time.elapsed, num_balls
-                { period: period, radius: radius }), 0.055, MetaballKind.NEG_QUADRATIC));
+                { period: period, radius: radius - 0.04 }),
+    0.055, MetaballKind.NEG_QUADRATIC));
   metaballs.push(...ballsLike(
     orbitalRing(state.time.elapsed, num_balls
-                { period: -period, radius: radius - 0.04 }), 0.055, MetaballKind.QUADRATIC));
+                { period: -period, radius: radius }),
+    0.085, MetaballKind.QUADRATIC));
+  metaballs.push(...ballsLike(
+    orbitalRing(state.time.elapsed + period / (num_balls * 2),
+      num_balls, { period: period, radius: radius + 0.04 }),
+    0.055, MetaballKind.NEG_QUADRATIC));
   // metaballs.push(...orbitalRing(state.time.elapsed,
   //   { period: -period, radius: radius }, num_balls, 0.0634));
   // if (state.time.elapsed % 30 === 0) {
@@ -309,10 +315,6 @@ const animate = (state: AnimationState,
       capturerStarted = true;
     }
     capturer.capture(state.canvas);
-    // if (state.time.elapsed >= 4000) {
-    //   capturer.stop();
-    //   capturer.save((blob: Blob) => download(blob, 'animation.gif', 'image/gif'));
-    //   return;
   }
   requestAnimationFrame(() => {
     animate(state, capturer, capturerStarted);
@@ -339,7 +341,7 @@ interface CaptureArgs {
 
 const captureArgs: CaptureArgs = {
   framerate: 24,
-  timeLimit: 8,
+  timeLimit: 4 - 0.0000,
   format: 'gif',
   display: true,
   verbose: true,
@@ -352,6 +354,12 @@ const startAndCapture = async () => {
   animate(state, capturer);
 }
 
-start();
-// startAndCapture();
+const capture = true;
+
+if (capture) {
+  startAndCapture();
+} else {
+  start();
+}
+
 console.log('Animation begun.');
