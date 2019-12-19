@@ -214,7 +214,7 @@ const ballsLike =
 
 const metaballState = (state: AnimationState): Metaball[] => {
   let metaballs: Metaball[] = [];
-  const num_balls = 8;
+  const num_balls = 2;
   const period = 32000;
   const radius = 0.77;
   // metaballs.push({ position: state.mouse, radius: 0.06 });
@@ -226,20 +226,20 @@ const metaballState = (state: AnimationState): Metaball[] => {
   metaballs.push({
     position:
       circularOrbit(state.time.elapsed { period: 32000, radius: 0.00 }),
-    radius: 0.27
+    radius: 0.33
   });
-  // metaballs.push(...ballsLike(
-  //   orbitalRing(state.time.elapsed, num_balls
-  //               { period: period, radius: radius - 0.04 }),
-  //   0.055, MetaballKind.NEG_QUADRATIC));
+  metaballs.push(...ballsLike(
+    orbitalRing(state.time.elapsed, num_balls * 4
+                { period: period, radius: radius - 0.04 }),
+    0.09, MetaballKind.NEG_QUADRATIC));
   metaballs.push(...ballsLike(
     orbitalRing(state.time.elapsed, num_balls
                 { period: -period, radius: radius }),
-    0.085, MetaballKind.QUADRATIC));
+    0.143, MetaballKind.QUADRATIC));
   metaballs.push(...ballsLike(
-    orbitalRing(state.time.elapsed + period / (num_balls * 2),
-      num_balls, { period: period, radius: radius + 0.04 }),
-    0.055, MetaballKind.NEG_QUADRATIC));
+    orbitalRing(state.time.elapsed + period / (num_balls * 4 * 2),
+      num_balls * 4, { period: period, radius: radius + 0.04 }),
+    0.1, MetaballKind.NEG_QUADRATIC));
   // metaballs.push(...orbitalRing(state.time.elapsed,
   //   { period: -period, radius: radius }, num_balls, 0.0634));
   // if (state.time.elapsed % 30 === 0) {
@@ -354,7 +354,7 @@ const startAndCapture = async () => {
   animate(state, capturer);
 }
 
-const capture = true;
+const capture = false;
 
 if (capture) {
   startAndCapture();
