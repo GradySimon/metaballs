@@ -104,8 +104,8 @@ const init = async (): Promise<AnimationState> => {
   let { uniforms, mesh } = await initShader();
   scene.add(mesh);
 
-  let renderer = new THREE.WebGLRenderer();
-  renderer.setPixelRatio(window.devicePixelRatio);
+  let renderer = new THREE.WebGLRenderer({ antialias: true });
+  renderer.setPixelRatio(window.devicePixelRatio * 2);
   renderer.setSize(window.innerWidth, window.innerHeight);
   const canvas = renderer.domElement;
   document.body.appendChild(canvas);
@@ -338,8 +338,8 @@ interface CaptureArgs {
 }
 
 const captureArgs: CaptureArgs = {
-  framerate: 60,
-  timeLimit: 4,
+  framerate: 24,
+  timeLimit: 8,
   format: 'gif',
   display: true,
   verbose: true,
@@ -352,6 +352,6 @@ const startAndCapture = async () => {
   animate(state, capturer);
 }
 
-// start();
-startAndCapture();
+start();
+// startAndCapture();
 console.log('Animation begun.');
