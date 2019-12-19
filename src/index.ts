@@ -226,12 +226,12 @@ const metaballState = (state: AnimationState): Metaball[] => {
   // });
   metaballs.push({
     position:
-      circularOrbit(state.time.elapsed { period: 32000, radius: 0.00 }),
+      circularOrbit(state.time.elapsed, { period: 32000, radius: 0.00 }),
     radius: 0.34
   });
   metaballs.push({
     position:
-      circularOrbit(state.time.elapsed { period: 32000, radius: 0.00 }),
+      circularOrbit(state.time.elapsed, { period: 32000, radius: 0.00 }),
     radius: 0.49,
     kind: MetaballKind.ZERO
   });
