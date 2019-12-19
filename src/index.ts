@@ -228,10 +228,10 @@ const metaballState = (state: AnimationState): Metaball[] => {
       circularOrbit(state.time.elapsed { period: 32000, radius: 0.00 }),
     radius: 0.27
   });
-  metaballs.push(...ballsLike(
-    orbitalRing(state.time.elapsed, num_balls
-                { period: period, radius: radius - 0.04 }),
-    0.055, MetaballKind.NEG_QUADRATIC));
+  // metaballs.push(...ballsLike(
+  //   orbitalRing(state.time.elapsed, num_balls
+  //               { period: period, radius: radius - 0.04 }),
+  //   0.055, MetaballKind.NEG_QUADRATIC));
   metaballs.push(...ballsLike(
     orbitalRing(state.time.elapsed, num_balls
                 { period: -period, radius: radius }),
