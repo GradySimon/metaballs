@@ -15,7 +15,8 @@ uniform float u_time;
 #define QUADRATIC 1
 #define NEG_QUADRATIC 2
 #define LINEAR 3
-#define ZERO 4
+#define NEG_LINEAR 4
+#define ZERO 5
 
 uniform int u_metaball_kind[MAX_NUM_METABALLS];
 uniform vec2 u_metaball_pos[MAX_NUM_METABALLS];
@@ -49,10 +50,18 @@ float neg_quadratic_density(vec2 frag_pos, vec2 pos, float radius) {
   return -quadratic_density(frag_pos, pos, radius);
 }
 float linear_density(vec2 frag_pos, vec2 pos, float radius) {
-  return 0.2 * radius * radius / sqrt(dot((frag_pos - pos),
+  return 1. * radius * radius / sqrt(dot((frag_pos - pos),
                                           (frag_pos - pos)));
 }
+
+float neg_linear_density(vec2 frag_pos, vec2 pos, float radius) {
+  return -linear_density(frag_pos, pos, radius);
+}
+
 float zero_density(vec2 frag_pos, vec2 pos, float radius) {
+  if (sqrt(dot(frag_pos - pos, frag_pos - pos)) < radius) {
+    return -1000000.;
+  }
   return 0.;
 }
 
@@ -63,8 +72,10 @@ float density_for_ball(vec2 frag_pos, int kind, vec2 pos, float radius) {
     return neg_quadratic_density(frag_pos, pos, radius);
   } else if (kind == LINEAR) {
     return linear_density(frag_pos, pos, radius);
+  } else if (kind == NEG_LINEAR) {
+    return neg_linear_density(frag_pos, pos, radius);
   } else if (kind == ZERO) {
-    return 0.;
+    return zero_density(frag_pos, pos, radius);
   }
   return 0.;
 }
