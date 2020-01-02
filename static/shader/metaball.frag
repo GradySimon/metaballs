@@ -2,7 +2,7 @@
 precision mediump float;
 #endif
 
-#define MAX_NUM_METABALLS 25
+#define MAX_NUM_METABALLS 100
 #define RADIUS 0.065
 
 #define NO_THRESHOLDING false
