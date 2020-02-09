@@ -51,15 +51,15 @@ const orbit = (t: number, {
   return [
     oscillate(t,
       {
-        period: period,
-        tOffset: tOffset,
+        period,
+        tOffset,
         outMin: -xAxis,
         outMax: xAxis,
       }),
     oscillate(t,
       {
-        period: period,
-        tOffset: tOffset,
+        period,
+        tOffset
         outMin: -yAxis,
         outMax: yAxis,
         fn: Math.cos
@@ -82,7 +82,7 @@ const circularOrbit = (t: number, {
 
 const orbitalRing = (t: number,
   count: number,
-  orbit: CircularOrbit): Point[] {
+  orbit: CircularOrbit): Point[] => {
   let points: Point[] = [];
   for (let i = 0; i < count; i++) {
     orbit.tOffset = i * (orbit.period / count)
@@ -121,7 +121,11 @@ export const metaballScene = (params: SceneParams): Metaball[] => {
   metaballs.push({
     position:
       circularOrbit(params.elapsed_time, { period: 32000, radius: 0.00 }),
-    radius: 0.33
+    radius: oscillate(params.elapsed_time, {
+      period: 24000,
+      outMin: 0.30,
+      outMax: 0.45,
+    })
   });
   metaballs.push({
     position:
@@ -134,8 +138,8 @@ export const metaballScene = (params: SceneParams): Metaball[] => {
       { period: period * 2, radius: radius - 0.04 }),
     0.060, MetaballKind.NEG_QUADRATIC));
   metaballs.push(...ballsLike(
-    orbitalRing(params.elapsed_time, num_balls
-                { period: -period, radius: radius }),
+    orbitalRing(params.elapsed_time, num_balls,
+      { period: -period, radius: radius }),
     0.055, MetaballKind.QUADRATIC));
   metaballs.push(...ballsLike(
     orbitalRing(params.elapsed_time + period / (num_balls * 2),

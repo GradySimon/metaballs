@@ -1,12 +1,18 @@
 import * as THREE from 'three';
-// import * as gifjs from './assets/js/gif'
-import * as RL from './rl'
 import { Point } from './common-types';
 import { Metaball, MetaballKind, metaballScene } from './metaball';
+// import * as gifjs from './assets/js/gif'
+import * as RL from './rl';
 
 interface ShaderState {
   uniforms: Record<string, any>;
   mesh: THREE.Mesh;
+}
+
+interface RLState {
+  agent: RL.Agent;
+  lastAction?: RL.ActionProp;
+  lastState?: any;
 }
 
 interface AnimationState {
@@ -18,67 +24,69 @@ interface AnimationState {
   aspectRatio: number;
   mouse: Point;
   metaballs?: Metaball[];
-  time: { start: number, elapsed: number };
+  time: { start: number; elapsed: number };
+  rl: RLState;
   agent: RL.Agent;
 }
 
-
-const aspectRatio = (): number => window.innerWidth / window.innerHeight;
-
+const getAspectRatio = (): number => window.innerWidth / window.innerHeight;
 
 const fetchText = async (url: string): Promise<string> => {
   const response = await fetch(url);
   return response.text();
-}
-
+};
 
 const initShader = async () => {
   const [vertexShader, fragmentShader] = await Promise.all([
-    fetchText("shader/metaball.vert"),
-    fetchText("shader/metaball.frag")
+    fetchText('shader/metaball.vert'),
+    fetchText('shader/metaball.frag')
   ]);
-  let geometry = new THREE.PlaneBufferGeometry(2, 2);
-  let uniforms = {
+  const geometry = new THREE.PlaneBufferGeometry(2, 2);
+  const uniforms: Record<
+    string,
+    { type: string; value: number[] | number | THREE.Vector2 }
+  > = {
     u_resolution: {
-      type: "v2", value: new THREE.Vector2(window.innerWidth,
-        window.innerHeight)
+      type: 'v2',
+      value: new THREE.Vector2(window.innerWidth, window.innerHeight)
     },
-    u_mouse: { type: "v2", value: new THREE.Vector2() },
-    u_metaball_kind: { type: "intv", value: [] },
-    u_metaball_pos: { type: "v2v", value: [] },
+    u_mouse: { type: 'v2', value: new THREE.Vector2() },
+    u_metaball_kind: { type: 'intv', value: [] },
+    u_metaball_pos: { type: 'v2v', value: [] },
     u_metaball_radius: {
-      type: "fv", value: []
+      type: 'fv',
+      value: []
     },
     u_num_metaballs: {
-      type: "int", value: 2
+      type: 'int',
+      value: 2
     },
     u_threshold: {
-      type: "float", value: Number.POSITIVE_INFINITY,
-    },
+      type: 'float',
+      value: Number.POSITIVE_INFINITY
+    }
   };
-  let material = new THREE.ShaderMaterial({
+  const material = new THREE.ShaderMaterial({
     uniforms: uniforms,
     vertexShader: vertexShader,
     fragmentShader: fragmentShader
   });
   let mesh = new THREE.Mesh(geometry, material);
   return { uniforms, mesh };
-}
+};
 
-
-const windowSizeUpdater = (state: AnimationState): (e: UIEvent) => void => {
+const windowSizeUpdater = (state: AnimationState): ((e: UIEvent) => void) => {
   return (e: UIEvent) => {
     state.renderer.setSize(window.innerWidth, window.innerHeight);
-  }
-}
+  };
+};
 
-
-const mouseUpdater = (state: AnimationState): (e: MouseEvent) => void => {
+const mouseUpdater = (state: AnimationState): ((e: MouseEvent) => void) => {
   return (e: MouseEvent) => {
     state.mouse = [
-      2 * (e.pageX - (window.innerWidth / 2)) / window.innerWidth,
-      2 * ((window.innerHeight - e.pageY) - (window.innerHeight / 2))
-      / window.innerHeight
+      (2 * (e.pageX - window.innerWidth / 2)) / window.innerWidth,
+      (2 * (window.innerHeight - e.pageY - window.innerHeight / 2)) /
+        window.innerHeight
     ];
     if (state.aspectRatio > 1) {
       state.mouse[0] *= state.aspectRatio;
@@ -86,28 +94,27 @@ const mouseUpdater = (state: AnimationState): (e: MouseEvent) => void => {
       state.mouse[1] /= state.aspectRatio;
     }
   };
-}
-
+};
 
 const init = async (): Promise<AnimationState> => {
-  let scene = new THREE.Scene();
+  const scene = new THREE.Scene();
 
   const aspectRatio = window.innerWidth / window.innerHeight;
-  let camera = new THREE.PerspectiveCamera(75, aspectRatio, 0.1, 1000);
+  const camera = new THREE.PerspectiveCamera(75, aspectRatio, 0.1, 1000);
   camera.position.z = 1;
 
   let { uniforms, mesh } = await initShader();
   scene.add(mesh);
 
-  let renderer = new THREE.WebGLRenderer({ antialias: true });
+  const renderer = new THREE.WebGLRenderer({ antialias: true });
   renderer.setPixelRatio(window.devicePixelRatio * 2);
   renderer.setSize(window.innerWidth, window.innerHeight);
   const canvas = renderer.domElement;
   document.body.appendChild(canvas);
 
-  let agent = new RL.Agent();
+  const agent = new RL.Agent();
 
-  let state: AnimationState = {
+  const state: AnimationState = {
     scene,
     camera,
     renderer,
@@ -116,13 +123,12 @@ const init = async (): Promise<AnimationState> => {
     mouse: [0, 0],
     shader: { uniforms, mesh },
     time: { start: Date.now(), elapsed: 0 },
-    agent: agent,
+    rl: { agent }
   };
   document.onmousemove = mouseUpdater(state);
   window.addEventListener('resize', windowSizeUpdater(state), false);
   return state;
 };
-
 
 interface MetaballUniformValues {
   u_num_metaballs: number;
@@ -132,43 +138,54 @@ interface MetaballUniformValues {
   u_threshold: number;
 }
 
-
 const metaballsToUniforms = (metaballs: Metaball[]): MetaballUniformValues => {
-  let kinds: MetaballKind[] = [];
-  let flat_positions: number[] = [];
-  let radii: number[] = [];
+  const kinds: MetaballKind[] = [];
+  const flatPositions: number[] = [];
+  const radii: number[] = [];
   for (const metaball of metaballs) {
     kinds.push(metaball.kind || MetaballKind.QUADRATIC);
-    flat_positions.push(metaball.position[0], metaball.position[1]);
+    flatPositions.push(metaball.position[0], metaball.position[1]);
     radii.push(metaball.radius);
   }
   return {
     u_num_metaballs: metaballs.length,
     u_metaball_kind: kinds,
-    u_metaball_pos: flat_positions,
+    u_metaball_pos: flatPositions,
     u_metaball_radius: radii,
-    u_threshold: 0.3,
-  }
-}
+    u_threshold: 0.3
+  };
+};
 
+const updateRLState = (state: AnimationState): RLState => {
+  let outcome: Outcome = {};
+  outcome.situation = 0;
+  if ('lastAction' in state.rl) {
+    outcome.lastAction = state.rl.lastAction;
+    outcome.reward = 0.0;
+    if (state.rl.lastAction.action) {
+      outcome.reward = Math.random() < 0.6 ? 1.0 : 0.0;
+    } else {
+      outcome.reward = Math.random() < 0.255 ? 1.0 : 0.0;
+    }
+  }
+  const reaction = state.rl.agent.react(outcome);
+  console.debug('Received reaction:', reaction);
+  return { agent: state.rl.agent, lastAction: reaction.action };
+};
 
 const update = (state: AnimationState): AnimationState => {
   state.time.elapsed = Date.now() - state.time.start;
 
-  state.shader.uniforms.u_resolution.value.x =
-    state.renderer.domElement.width;
-  state.shader.uniforms.u_resolution.value.y =
-    state.renderer.domElement.height;
+  state.shader.uniforms.u_resolution.value.x = state.renderer.domElement.width;
+  state.shader.uniforms.u_resolution.value.y = state.renderer.domElement.height;
 
-  state.aspectRatio = aspectRatio();
+  state.aspectRatio = getAspectRatio();
 
-  const actionProp: RL.ActionProp = state.agent.act({
-    state: { elapsed_time: state.time.elapsed }
-  });
+  state.rl = updateRLState(state);
 
   const metaballs = metaballScene({
     elapsed_time: state.time.elapsed,
-    mouse: state.mouse;
+    mouse: state.mouse
   });
   const {
     u_num_metaballs,
@@ -176,8 +193,7 @@ const update = (state: AnimationState): AnimationState => {
     u_metaball_pos,
     u_metaball_radius,
     u_threshold
-  } =
-    metaballsToUniforms(metaballs);
+  } = metaballsToUniforms(metaballs);
   state.shader.uniforms['u_num_metaballs'].value = u_num_metaballs;
   state.shader.uniforms['u_metaball_kind'].value = u_metaball_kind;
   state.shader.uniforms['u_metaball_pos'].value = u_metaball_pos;
@@ -185,12 +201,13 @@ const update = (state: AnimationState): AnimationState => {
   state.shader.uniforms['u_threshold'].value = u_threshold;
 
   return state;
-}
+};
 
-
-const animate = (state: AnimationState,
+const animate = (
+  state: AnimationState,
   capturer?: any,
-  capturerStarted?: boolean) => {
+  capturerStarted?: boolean
+) => {
   state = update(state);
   state.renderer.render(state.scene, state.camera);
   if (capturer !== undefined) {
@@ -206,9 +223,9 @@ const animate = (state: AnimationState,
 };
 
 const start = async () => {
-  let state = await init();
+  const state = await init();
   animate(state);
-}
+};
 
 interface CaptureArgs {
   // See https://github.com/spite/ccapture.js
@@ -224,13 +241,13 @@ interface CaptureArgs {
 }
 
 const captureArgs: CaptureArgs = {
-  framerate: 48,
-  timeLimit: 12,
+  framerate: 24,
+  timeLimit: 48,
   format: 'gif',
   display: true,
   verbose: true,
-  workersPath: "http://0.0.0.0:1234/js/"
-}
+  workersPath: 'http://localhost:1234/js/'
+};
 
 const startAndCapture = async () => {
   let state = await init();
@@ -238,10 +255,12 @@ const startAndCapture = async () => {
   processedCaptureArgs.timeLimit -= 1 / captureArgs.framerate;
   let capturer = new CCapture(processedCaptureArgs);
   animate(state, capturer);
-}
+};
 
-const capture = false;
-// const capture = true;
+// const capture = false;
+const capture = true;
+
+// console.debug = () => {};
 
 if (capture) {
   startAndCapture();
