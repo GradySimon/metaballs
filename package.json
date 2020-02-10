@@ -5,6 +5,8 @@
   "author": "Grady Simon <grady.hsimon@gmail.com>",
   "license": "MIT",
   "dependencies": {
+    "@types/lodash": "^4.14.149",
+    "lodash": "^4.17.15",
     "three": "^0.110.0"
   },
   "devDependencies": {

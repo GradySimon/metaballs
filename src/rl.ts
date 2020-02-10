@@ -1,43 +1,42 @@
-export interface Situation {
-  state: any;
+import * as _ from 'lodash';
+
+export interface Situation<StateSpace> {
+  state: StateSpace;
 }
 
-export interface ActionProp {
-  state: any;
-  action: boolean;
+export interface ActionProp<StateSpace, ActionSpace> {
+  state: StateSpace;
+  action: ActionSpace;
 }
 
-export interface Reaction {
-  action?: ActionProp;
+export interface Reaction<StateSpace, ActionSpace> {
+  action?: ActionProp<StateSpace, ActionSpace>;
 }
 
-export interface Outcome {
+export interface Outcome<StateSpace, ActionSpace> {
   // If provided, respond with a new ActionProp and prepare for the next step.
   // Also required for the agent to learn from the Outcome.
-  situation?: Situation;
+  situation?: Situation<StateSpace>;
 
   // The action this is the outcome for. Required for the agent to learn from
   // the outcome.
-  lastAction?: ActionProp;
+  lastAction?: ActionProp<StateSpace, ActionSpace>;
 
   // If provided, learn from the reward.
   reward?: number;
 }
 
-export class Agent {
+export class Agent<StateSpace, ActionSpace> {
   // private learningRate = 0.005;
   private stepsSeen: number = 0;
-  private counts: Map<boolean, number> = new Map([
-    [true, 0],
-    [false, 0]
-  ]);
-  private meanReward: Map<boolean, number> = new Map([
-    [true, 0],
-    [false, 0]
-  ]);
-  constructor() {
-    this.meanReward.set(true, 0.0);
-    this.meanReward.set(false, 0.0);
+
+  private counts: Map<ActionSpace, number> = new Map();
+  private meanReward: Map<ActionSpace, number> = new Map();
+  constructor(private readonly actions: ActionSpace[]) {
+    for (const action of actions) {
+      this.counts.set(action, 0);
+      this.meanReward.set(action, 0);
+    }
   }
   // Policy needs to be fast. Learning can be async and slow.
   // If policy is fast enough to be synchronous, API is simpler.
@@ -48,13 +47,15 @@ export class Agent {
    * @param outcome The Outcome or Situation to react to.
    * @returns The agent's reaction to the situation or outcome.
    */
-  public react(outcome: Situation | Outcome): Reaction {
+  public react(
+    outcome: Situation<StateSpace> | Outcome<StateSpace, ActionSpace>
+  ): Reaction<StateSpace, ActionSpace> {
     // if is a Sitaution
     if (outcome.hasOwnProperty('state')) {
       // Wrap into an Outcome
-      outcome = { situation: outcome as Situation };
+      outcome = { situation: outcome as Situation<StateSpace> };
     }
-    console.debug('Reacting to:', outcome);
+    // console.debug('Reacting to:', outcome);
     if ('reward' in outcome && 'lastAction' in outcome) {
       this.stepsSeen++;
       let countForState = this.counts.get(outcome.lastAction.action);
@@ -66,7 +67,7 @@ export class Agent {
         currentEstimate +
           (1 / countForState) * (outcome.reward - currentEstimate)
       );
-      if (Math.random() < 0.02) {
+      if (Math.random() < 0.001) {
         console.debug(
           'Agent meanReward est. after',
           this.stepsSeen,
@@ -77,8 +78,8 @@ export class Agent {
     }
     return {
       action: {
-        state: (outcome as Outcome).situation.state,
-        action: Math.random() < 0.5
+        state: (outcome as Outcome<StateSpace, ActionSpace>).situation.state,
+        action: this.actions[_.random(this.actions.length)]
       }
     };
   }

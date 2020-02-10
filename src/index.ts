@@ -1,6 +1,7 @@
 import * as THREE from 'three';
-import { Point } from './common-types';
+import { Vec2 } from './common-types';
 import { Metaball, MetaballKind, metaballScene } from './metaball';
+import { OrbitWorld } from './orbit-world';
 // import * as gifjs from './assets/js/gif'
 import * as RL from './rl';
 
@@ -22,11 +23,19 @@ interface AnimationState {
   canvas: HTMLCanvasElement;
   shader: ShaderState;
   aspectRatio: number;
-  mouse: Point;
+  mouse: Vec2;
   metaballs?: Metaball[];
-  time: { start: number; elapsed: number };
-  rl: RLState;
-  agent: RL.Agent;
+  time: {
+    // Time (millis) at which the animation started.
+    start: number;
+    // Time (millis) elapsed since the beginning.
+    elapsed: number;
+    // Time (millis) elapsed since last step.
+    stepTime: number;
+    // Number of steps elapsed.
+    steps: number;
+  };
+  world: OrbitWorld;
 }
 
 const getAspectRatio = (): number => window.innerWidth / window.innerHeight;
@@ -71,7 +80,7 @@ const initShader = async () => {
     vertexShader: vertexShader,
     fragmentShader: fragmentShader
   });
-  let mesh = new THREE.Mesh(geometry, material);
+  const mesh = new THREE.Mesh(geometry, material);
   return { uniforms, mesh };
 };
 
@@ -103,7 +112,7 @@ const init = async (): Promise<AnimationState> => {
   const camera = new THREE.PerspectiveCamera(75, aspectRatio, 0.1, 1000);
   camera.position.z = 1;
 
-  let { uniforms, mesh } = await initShader();
+  const { uniforms, mesh } = await initShader();
   scene.add(mesh);
 
   const renderer = new THREE.WebGLRenderer({ antialias: true });
@@ -112,7 +121,8 @@ const init = async (): Promise<AnimationState> => {
   const canvas = renderer.domElement;
   document.body.appendChild(canvas);
 
-  const agent = new RL.Agent();
+  const world = new OrbitWorld();
+  world.init(10);
 
   const state: AnimationState = {
     scene,
@@ -122,8 +132,8 @@ const init = async (): Promise<AnimationState> => {
     aspectRatio,
     mouse: [0, 0],
     shader: { uniforms, mesh },
-    time: { start: Date.now(), elapsed: 0 },
-    rl: { agent }
+    time: { start: Date.now(), elapsed: 0, steps: 0 },
+    world: world
   };
   document.onmousemove = mouseUpdater(state);
   window.addEventListener('resize', windowSizeUpdater(state), false);
@@ -157,7 +167,7 @@ const metaballsToUniforms = (metaballs: Metaball[]): MetaballUniformValues => {
 };
 
 const updateRLState = (state: AnimationState): RLState => {
-  let outcome: Outcome = {};
+  const outcome: Outcome = {};
   outcome.situation = 0;
   if ('lastAction' in state.rl) {
     outcome.lastAction = state.rl.lastAction;
@@ -174,19 +184,22 @@ const updateRLState = (state: AnimationState): RLState => {
 };
 
 const update = (state: AnimationState): AnimationState => {
+  const prevElapsed: number = state.time.elapsed;
   state.time.elapsed = Date.now() - state.time.start;
+  state.time.stepTime = state.time.elapsed - prevElapsed;
 
   state.shader.uniforms.u_resolution.value.x = state.renderer.domElement.width;
   state.shader.uniforms.u_resolution.value.y = state.renderer.domElement.height;
 
   state.aspectRatio = getAspectRatio();
 
-  state.rl = updateRLState(state);
+  // const metaballs = metaballScene({
+  //   elapsed_time: state.time.elapsed,
+  //   mouse: state.mouse
+  // });
+  state.world.step(state.time.stepTime, state.time.elapsed);
+  const metaballs = state.world.asMetaballs();
 
-  const metaballs = metaballScene({
-    elapsed_time: state.time.elapsed,
-    mouse: state.mouse
-  });
   const {
     u_num_metaballs,
     u_metaball_kind,
@@ -194,12 +207,13 @@ const update = (state: AnimationState): AnimationState => {
     u_metaball_radius,
     u_threshold
   } = metaballsToUniforms(metaballs);
-  state.shader.uniforms['u_num_metaballs'].value = u_num_metaballs;
-  state.shader.uniforms['u_metaball_kind'].value = u_metaball_kind;
-  state.shader.uniforms['u_metaball_pos'].value = u_metaball_pos;
-  state.shader.uniforms['u_metaball_radius'].value = u_metaball_radius;
-  state.shader.uniforms['u_threshold'].value = u_threshold;
+  state.shader.uniforms.u_num_metaballs.value = u_num_metaballs;
+  state.shader.uniforms.u_metaball_kind.value = u_metaball_kind;
+  state.shader.uniforms.u_metaball_pos.value = u_metaball_pos;
+  state.shader.uniforms.u_metaball_radius.value = u_metaball_radius;
+  state.shader.uniforms.u_threshold.value = u_threshold;
 
+  state.time.steps++;
   return state;
 };
 
@@ -250,15 +264,15 @@ const captureArgs: CaptureArgs = {
 };
 
 const startAndCapture = async () => {
-  let state = await init();
-  let processedCaptureArgs: CaptureArgs = { ...captureArgs };
+  const state = await init();
+  const processedCaptureArgs: CaptureArgs = { ...captureArgs };
   processedCaptureArgs.timeLimit -= 1 / captureArgs.framerate;
-  let capturer = new CCapture(processedCaptureArgs);
+  const capturer = new CCapture(processedCaptureArgs);
   animate(state, capturer);
 };
 
-// const capture = false;
-const capture = true;
+const capture = false;
+// const capture = true;
 
 // console.debug = () => {};
 

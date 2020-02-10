@@ -1,4 +1,4 @@
-import { Point } from "./common-types";
+import { Vec2 } from "./common-types";
 
 export enum MetaballKind {
   QUADRATIC = 1,
@@ -10,7 +10,7 @@ export enum MetaballKind {
 
 export interface Metaball {
   kind?: MetaballKind;
-  position: Point;
+  position: Vec2;
   radius: number;
 }
 
@@ -47,7 +47,7 @@ const orbit = (t: number, {
   tOffset = 0,
   xAxis = 1,
   yAxis = 1,
-}: Orbit): Point => {
+}: Orbit): Vec2 => {
   return [
     oscillate(t,
       {
@@ -72,7 +72,7 @@ interface CircularOrbit extends Orbit {
 
 const circularOrbit = (t: number, {
   period = 4000, tOffset = 0, radius = 1,
-}: CircularOrbit): Point => {
+}: CircularOrbit): Vec2 => {
   return orbit(t, {
     period, tOffset,
     xAxis: radius,
@@ -82,8 +82,8 @@ const circularOrbit = (t: number, {
 
 const orbitalRing = (t: number,
   count: number,
-  orbit: CircularOrbit): Point[] => {
-  let points: Point[] = [];
+  orbit: CircularOrbit): Vec2[] => {
+  let points: Vec2[] = [];
   for (let i = 0; i < count; i++) {
     orbit.tOffset = i * (orbit.period / count)
     points.push(circularOrbit(t, orbit));
@@ -92,9 +92,9 @@ const orbitalRing = (t: number,
 }
 
 const ballsLike =
-  (positions: Point[],
-    radius: number,
-    kind = MetaballKind.QUADRATIC): Metaball[] => {
+  (positions: Vec2[],
+   radius: number,
+   kind = MetaballKind.QUADRATIC): Metaball[] => {
     let balls: Metaball[] = [];
     for (const position of positions) {
       balls.push({ position, radius, kind });
@@ -104,7 +104,7 @@ const ballsLike =
 
 export interface SceneParams {
   elapsed_time: number;
-  mouse: Point;
+  mouse: Vec2;
 }
 
 export const metaballScene = (params: SceneParams): Metaball[] => {
