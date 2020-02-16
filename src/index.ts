@@ -1,19 +1,14 @@
 import * as THREE from 'three';
 import { Vec2 } from './common-types';
-import { Metaball, MetaballKind, metaballScene } from './metaball';
+import { Metaball, MetaballKind } from './metaball';
 import { OrbitWorld } from './orbit-world';
+import FragShader from './shader/metaball.frag';
+import VertShader from './shader/metaball.vert';
 // import * as gifjs from './assets/js/gif'
-import * as RL from './rl';
 
 interface ShaderState {
   uniforms: Record<string, any>;
   mesh: THREE.Mesh;
-}
-
-interface RLState {
-  agent: RL.Agent;
-  lastAction?: RL.ActionProp;
-  lastState?: any;
 }
 
 interface AnimationState {
@@ -31,7 +26,7 @@ interface AnimationState {
     // Time (millis) elapsed since the beginning.
     elapsed: number;
     // Time (millis) elapsed since last step.
-    stepTime: number;
+    stepTime?: number;
     // Number of steps elapsed.
     steps: number;
   };
@@ -46,10 +41,14 @@ const fetchText = async (url: string): Promise<string> => {
 };
 
 const initShader = async () => {
+  console.log(VertShader);
+  console.log(FragShader);
   const [vertexShader, fragmentShader] = await Promise.all([
-    fetchText('shader/metaball.vert'),
-    fetchText('shader/metaball.frag')
+    fetchText(VertShader),
+    fetchText(FragShader)
   ]);
+  console.log(vertexShader);
+  console.log(fragmentShader);
   const geometry = new THREE.PlaneBufferGeometry(2, 2);
   const uniforms: Record<
     string,
@@ -85,7 +84,7 @@ const initShader = async () => {
 };
 
 const windowSizeUpdater = (state: AnimationState): ((e: UIEvent) => void) => {
-  return (e: UIEvent) => {
+  return (_e: UIEvent) => {
     state.renderer.setSize(window.innerWidth, window.innerHeight);
   };
 };
@@ -95,7 +94,7 @@ const mouseUpdater = (state: AnimationState): ((e: MouseEvent) => void) => {
     state.mouse = [
       (2 * (e.pageX - window.innerWidth / 2)) / window.innerWidth,
       (2 * (window.innerHeight - e.pageY - window.innerHeight / 2)) /
-        window.innerHeight
+      window.innerHeight
     ];
     if (state.aspectRatio > 1) {
       state.mouse[0] *= state.aspectRatio;
@@ -122,7 +121,7 @@ const init = async (): Promise<AnimationState> => {
   document.body.appendChild(canvas);
 
   const world = new OrbitWorld();
-  world.init(10);
+  await world.init(10);
 
   const state: AnimationState = {
     scene,
@@ -164,23 +163,6 @@ const metaballsToUniforms = (metaballs: Metaball[]): MetaballUniformValues => {
     u_metaball_radius: radii,
     u_threshold: 0.3
   };
-};
-
-const updateRLState = (state: AnimationState): RLState => {
-  const outcome: Outcome = {};
-  outcome.situation = 0;
-  if ('lastAction' in state.rl) {
-    outcome.lastAction = state.rl.lastAction;
-    outcome.reward = 0.0;
-    if (state.rl.lastAction.action) {
-      outcome.reward = Math.random() < 0.6 ? 1.0 : 0.0;
-    } else {
-      outcome.reward = Math.random() < 0.255 ? 1.0 : 0.0;
-    }
-  }
-  const reaction = state.rl.agent.react(outcome);
-  console.debug('Received reaction:', reaction);
-  return { agent: state.rl.agent, lastAction: reaction.action };
 };
 
 const update = (state: AnimationState): AnimationState => {
@@ -256,7 +238,7 @@ interface CaptureArgs {
 
 const captureArgs: CaptureArgs = {
   framerate: 24,
-  timeLimit: 48,
+  timeLimit: 16,
   format: 'gif',
   display: true,
   verbose: true,

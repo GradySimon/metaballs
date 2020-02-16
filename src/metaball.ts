@@ -1,4 +1,4 @@
-import { Vec2 } from "./common-types";
+import { Vec2 } from './common-types';
 
 export enum MetaballKind {
   QUADRATIC = 1,
@@ -36,10 +36,10 @@ const oscillate = (t: number, {
 
 
 interface Orbit {
-  period?: number,
-  tOffset?: number,
-  xAxis?: number,
-  yAxis?: number,
+  period?: number;
+  tOffset?: number;
+  xAxis?: number;
+  yAxis?: number;
 }
 
 const orbit = (t: number, {
@@ -59,16 +59,16 @@ const orbit = (t: number, {
     oscillate(t,
       {
         period,
-        tOffset
+        tOffset,
         outMin: -yAxis,
         outMax: yAxis,
         fn: Math.cos
       })];
-}
+};
 
 interface CircularOrbit extends Orbit {
   radius?: number;
-};
+}
 
 const circularOrbit = (t: number, {
   period = 4000, tOffset = 0, radius = 1,
@@ -78,29 +78,30 @@ const circularOrbit = (t: number, {
     xAxis: radius,
     yAxis: radius,
   });
-}
+};
 
-const orbitalRing = (t: number,
+const orbitalRing = (
+  t: number,
   count: number,
-  orbit: CircularOrbit): Vec2[] => {
-  let points: Vec2[] = [];
+  baseOrbit: CircularOrbit): Vec2[] => {
+  const points: Vec2[] = [];
   for (let i = 0; i < count; i++) {
-    orbit.tOffset = i * (orbit.period / count)
-    points.push(circularOrbit(t, orbit));
+    baseOrbit.tOffset = i * (baseOrbit.period / count);
+    points.push(circularOrbit(t, baseOrbit));
   }
   return points;
-}
+};
 
 const ballsLike =
   (positions: Vec2[],
    radius: number,
    kind = MetaballKind.QUADRATIC): Metaball[] => {
-    let balls: Metaball[] = [];
+    const balls: Metaball[] = [];
     for (const position of positions) {
       balls.push({ position, radius, kind });
     }
     return balls;
-  }
+  };
 
 export interface SceneParams {
   elapsed_time: number;
@@ -108,8 +109,8 @@ export interface SceneParams {
 }
 
 export const metaballScene = (params: SceneParams): Metaball[] => {
-  let metaballs: Metaball[] = [];
-  const num_balls = 8;
+  const metaballs: Metaball[] = [];
+  const numBalls = 8;
   const period = 48000;
   const radius = 0.77;
   // metaballs.push({ position: params.mouse, radius: 0.06 });
@@ -134,21 +135,21 @@ export const metaballScene = (params: SceneParams): Metaball[] => {
     kind: MetaballKind.ZERO
   });
   metaballs.push(...ballsLike(
-    orbitalRing(params.elapsed_time, num_balls,
+    orbitalRing(params.elapsed_time, numBalls,
       { period: period * 2, radius: radius - 0.04 }),
     0.060, MetaballKind.NEG_QUADRATIC));
   metaballs.push(...ballsLike(
-    orbitalRing(params.elapsed_time, num_balls,
+    orbitalRing(params.elapsed_time, numBalls,
       { period: -period, radius: radius }),
     0.055, MetaballKind.QUADRATIC));
   metaballs.push(...ballsLike(
-    orbitalRing(params.elapsed_time + period / (num_balls * 2),
-      num_balls,
+    orbitalRing(params.elapsed_time + period / (numBalls * 2),
+      numBalls,
       { period: -period, radius: radius }),
     0.055, MetaballKind.QUADRATIC));
   metaballs.push(...ballsLike(
-    orbitalRing(params.elapsed_time + period / (num_balls * 2),
-      num_balls, { period: period, radius: radius + 0.04 }),
+    orbitalRing(params.elapsed_time + period / (numBalls * 2),
+      numBalls, { period: period, radius: radius + 0.04 }),
     0.060, MetaballKind.NEG_QUADRATIC));
   // metaballs.push(...orbitalRing(params.elapsed_time,
   //   { period: -period, radius: radius }, num_balls, 0.0634));
@@ -157,4 +158,4 @@ export const metaballScene = (params: SceneParams): Metaball[] => {
   //   console.log(metaballs);
   // }
   return metaballs;
-}
+};
