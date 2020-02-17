@@ -179,7 +179,7 @@ const update = (state: AnimationState): AnimationState => {
   //   elapsed_time: state.time.elapsed,
   //   mouse: state.mouse
   // });
-  state.world.step(state.time.stepTime, state.time.elapsed);
+  state.world.step();
   const metaballs = state.world.asMetaballs();
 
   const {

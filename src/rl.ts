@@ -15,14 +15,13 @@ function gatherND(x: tf.Tensor, indices: tf.Tensor): tf.Tensor {
     },
     { x },
     grad
-  ) as
-    tf.Tensor;
+  ) as tf.Tensor;
 }
 
 const stopGradient = tf.customGrad((x: tf.Tensor, _save) => {
   return {
     value: x,
-    gradFunc: (dy, _saved) => [tf.zerosLike(dy)]
+    gradFunc: (dy, _saved) => [tf.zerosLike(dy)],
   };
 });
 
@@ -62,6 +61,21 @@ export class Agent<ActionSpace> {
   } = {};
 
   private actionMap: Map<ActionSpace, number> = new Map();
+  private meanReward: number = 0;
+
+  private readonly valueFnSwapSteps: Set<number> = new Set([
+    10,
+    50,
+    100,
+    200,
+    300,
+    400,
+    500,
+    1000,
+    1250,
+    1500,
+  ]);
+
   constructor(
     public readonly batchSize: number,
     public readonly featureDims: number,
@@ -77,16 +91,20 @@ export class Agent<ActionSpace> {
       layers: [
         tf.layers.dense({
           inputShape: [this.featureDims],
-          units: this.actions.length
-        })
-      ]
+          units: 64,
+          activation: 'relu',
+        }),
+        tf.layers.dense({
+          units: this.actions.length,
+        }),
+      ],
     });
     await this.model.valueFn.save('localstorage://value-fn');
     this.model.oldValueFn = await tf.loadLayersModel('localstorage://value-fn');
     this.model.optimizer = tf.train.adam(0.1);
     console.log(
-      `Initialized Agent with ${this.featureDims} feature dimensions, with action`,
-      `space: ${this.actions},`
+      `Initialized Agent with ${this.featureDims} feature dimensions, with `,
+      `action space: ${this.actions},`
     );
     console.log('and with model:');
     this.model.valueFn.summary();
@@ -106,99 +124,141 @@ export class Agent<ActionSpace> {
    * @param outcome The Outcome or Situation to react to.
    * @returns The agent's reaction to the situation or outcome.
    */
-  public async react(
-    outcome: Situation | Outcome<ActionSpace>
-  ): Promise<Reaction<ActionSpace>> {
-    // if is a Sitaution
-    if (outcome.hasOwnProperty('state')) {
-      // Wrap into an Outcome
-      outcome = { situation: outcome as Situation };
-    }
-    // console.debug('Reacting to:', outcome);
-    if ('reward' in outcome && 'lastAction' in outcome) {
-
-      await this.updateValueFn(outcome);
+  public async reactAll(
+    outcomes: Array<Outcome<ActionSpace>>
+  ): Promise<Array<Reaction<ActionSpace>>> {
+    if ('reward' in outcomes[0] && 'lastAction' in outcomes[0]) {
+      await this.updateValueFn(outcomes as Array<Outcome<ActionSpace>>);
       this.stepsOfLearning++;
     }
-    return {
-      action: {
-        state: (outcome as Outcome<ActionSpace>).situation.state,
-        action: this.actions[
-          this.sampleAction(
-            (outcome as Outcome<ActionSpace>).situation.state, 0.9
-          )
-        ]
-      }
-    };
+    const nextActions = this.sampleActions(
+      (outcomes as Array<Outcome<ActionSpace>>).map((o) => o.situation.state),
+      this.decayingEpsilon(this.stepsOfLearning)
+    );
+    const reactions: Array<Reaction<ActionSpace>> = [];
+    for (let i = 0; i < outcomes.length; i++) {
+      reactions.push({
+        action: {
+          state: outcomes[i].situation.state,
+          action: this.actions[nextActions[i]],
+        },
+      });
+    }
+    return reactions;
   }
 
-  private async updateValueFn(outcome: Outcome<ActionSpace>) {
-    if (this.stepsOfLearning % 10000 === 0) {
-      console.log('Swapping valueFns...');
+  private async updateValueFn(outcomes: Array<Outcome<ActionSpace>>) {
+    if (
+      this.valueFnSwapSteps.has(this.stepsOfLearning) ||
+      this.stepsOfLearning % 2000 === 0
+    ) {
+      console.log(
+        `Swapping valueFns (${
+          this.stepsOfLearning
+        } steps | ${this.decayingEpsilon(this.stepsOfLearning)} epsilon | ${
+          this.meanReward
+        } reward)...`
+      );
       await this.model.valueFn.save('localstorage://value-fn');
-      this.model.oldValueFn = await tf.loadLayersModel('localstorage://value-fn');
+      this.model.oldValueFn = await tf.loadLayersModel(
+        'localstorage://value-fn'
+      );
       console.log('... Swapping valueFns complete.');
     }
     // tslint:disable-next-line:no-unused-expression
     await this.model.optimizer.minimize(() => {
+      const prevStates = outcomes.map((o) => o.lastAction.state);
+      const currentStates = outcomes.map((o) => o.situation.state);
+      const actions = outcomes.map((o) =>
+        this.actionMap.get(o.lastAction.action)
+      );
+      const rewards = outcomes.map((o) => o.reward);
+      const stepMeanReward = _.sum(rewards) / rewards.length;
+      if (this.stepsOfLearning === 0) {
+        this.meanReward = stepMeanReward;
+      }
+      this.meanReward =
+        this.meanReward + 0.001 * (stepMeanReward - this.meanReward);
       const actionValues: tf.Tensor2D = this.model.valueFn.predictOnBatch(
-        tf.tensor([outcome.lastAction.state])
+        tf.tensor(prevStates)
       ) as tf.Tensor2D;
       // console.log('actionValues:', actionValues);
+
+      // TODO: need to fix the gather coords in here:
+
       const valueOfPrevious: tf.Tensor = gatherND(
         actionValues,
-        tf.tensor([0, this.actionMap.get(outcome.lastAction.action)], [1, 2], 'int32'),
+        this.batchActionCoords(tf.tensor1d(actions, 'int32'))
       );
       // console.log(valueOfPrevious);
       const nextActionValues: tf.Tensor2D = this.model.oldValueFn.predictOnBatch(
-        tf.tensor([outcome.situation.state])
+        tf.tensor(currentStates)
       ) as tf.Tensor2D;
       // TODO: Select based on epsilon greedy
       // console.log('nextActionValues:', nextActionValues);
       const greedySelections = this.epsilonGreedy(nextActionValues, 0.0);
-      const coords = this.epsilonGreedyActionCoordinates(greedySelections);
+      const coords = this.batchActionCoords(greedySelections);
       // console.log(coords);
       const valueOfNext = gatherND(
         nextActionValues,
-        coords,
+        coords
         // tf.tensor([0, this.actionMap.get(outcome.lastAction.action)], [1, 2], 'int32'),
       );
       // TODO: Discount future reward
       const sarsaTarget: tf.Tensor = stopGradient(
-        valueOfNext.mul(0.99).add(outcome.reward)
+        valueOfNext.mul(0.999).add(rewards)
       );
 
       const loss = tf.losses.meanSquaredError(sarsaTarget, valueOfPrevious);
       loss.data().then((l) => {
         if (this.stepsOfLearning % 3000 === 0) {
-          console.log('loss:', l);
+          console.debug('loss:', l);
         }
       });
       return loss as tf.Scalar;
     });
   }
 
-  private sampleAction(state: number[], epsilon: number) {
+  private sampleActions(states: number[][], epsilon: number) {
     const actionValues: tf.Tensor2D = this.model.valueFn.predictOnBatch(
-      tf.tensor([state])
+      tf.tensor(states)
     ) as tf.Tensor2D;
-    const actionSelections: tf.Tensor1D = this.epsilonGreedy(actionValues, epsilon);
-    return actionSelections.arraySync()[0];
+    const actionSelections: tf.Tensor1D = this.epsilonGreedy(
+      actionValues,
+      epsilon
+    );
+    return actionSelections.arraySync();
   }
 
-  private epsilonGreedy(actionValues: tf.Tensor2D, epsilon: number): tf.Tensor1D {
+  private decayingEpsilon(timeStep: number): number {
+    return 1 - Math.pow(1 - 1.5e-4, timeStep) / 3 - 0.01;
+  }
+
+  private epsilonGreedy(
+    actionValues: tf.Tensor2D,
+    epsilon: number
+  ): tf.Tensor1D {
     if (Math.random() < epsilon) {
       return tf.argMax(actionValues, 1);
     } else {
-      return tf.randomUniform([actionValues.shape[0], 1], 0, this.actions.length, 'int32');
+      return tf.randomUniform(
+        ([actionValues.shape[0], 1] as unknown) as [number],
+        0,
+        this.actions.length,
+        'int32'
+      );
     }
   }
 
-  private epsilonGreedyActionCoordinates(epsilonGreedySelections: tf.Tensor1D): tf.Tensor2D {
-    const batchIndices: tf.Tensor2D = tf.range(0, epsilonGreedySelections.shape[0], 1, 'int32').reshape([-1, 1]);
-    const reshapedEpsilonGreedySelections: tf.Tensor2D = epsilonGreedySelections.reshape([-1, 1]);
+  private batchActionCoords(actionIndices: tf.Tensor1D): tf.Tensor2D {
+    const batchIndices: tf.Tensor2D = tf
+      .range(0, actionIndices.shape[0], 1, 'int32')
+      .reshape([-1, 1]);
+    const reshapedEpsilonGreedySelections: tf.Tensor2D = actionIndices.reshape([
+      -1,
+      1,
+    ]);
 
     return tf.concat2d([batchIndices, reshapedEpsilonGreedySelections], 1);
   }
 }
-

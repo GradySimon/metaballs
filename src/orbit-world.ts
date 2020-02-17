@@ -19,14 +19,14 @@ interface AgentState {
 enum ThrustAction {
   None,
   Forward,
-  Reverse
+  Reverse,
 }
 
 const randomAgentState = (): AgentState => {
   return {
     position: [Math.random() * 1.8 - 0.9, Math.random() * 1.8 - 0.9],
     velocity: [Math.random() * 0.5 - 0.25, Math.random() * 0.5 - 0.25],
-    mass: Math.random() * 0.07
+    mass: Math.random() * 0.07,
   };
 };
 
@@ -54,6 +54,8 @@ export class OrbitWorld {
   world and the agents, and that might hard to do generically.
   */
 
+  // private time: number = 0;
+  private timeStepSize: number = 1 / 30;
   private originMass: number = 0;
   private steps: number = 0;
   private agent?: RL.Agent<ThrustAction>;
@@ -67,43 +69,24 @@ export class OrbitWorld {
     this.agent = new RL.Agent<ThrustAction>(1, 5, [
       ThrustAction.None,
       ThrustAction.Forward,
-      ThrustAction.Reverse
+      ThrustAction.Reverse,
     ]);
     await this.agent.init();
     for (let i = 0; i < numAgents; i++) {
-      this.orbiters.push({
+      const orbiter: OrbitAgent = {
         agent: this.agent,
-        state: randomAgentState()
-      });
+        state: randomAgentState(),
+      };
+      this.orbiters.push(orbiter);
     }
   }
 
-  public async step(millisSinceLast: number, elapsedTime: number) {
-    const secondsSinceLast: number = millisSinceLast / 1000;
+  public async step() {
     if (this.steps % 200 === 0) {
-      console.debug('Elapsed time: (', elapsedTime / 1000, '):', this.orbiters);
+      // console.debug('Elapsed time: (', elapsedTime / 1000, '):', this.orbiters);
       // console.debug('OrbitWorld metaballs:', this.asMetaballs();
     }
-    const updatedAgents: OrbitAgent[] = [];
-    for (let i = 0; i < this.orbiters.length; i++) {
-      const agent = this.orbiters[i];
-      // const otherAgents: AgentState[] = this.orbiters
-      //   .slice(0, i)
-      //   .map((o) => o.state);
-      // otherAgents.push(...this.orbiters.slice(i + 1, this.orbiters.length)
-      //   .map((o) => o.state));
-      // console.assert(otherAgents.length === this.orbiters.length - 1);
-      const nextState = await this.nextAgentState(
-        agent,
-        secondsSinceLast,
-        // otherAgents
-      );
-      updatedAgents.push({
-        ...agent,
-        state: nextState
-      });
-    }
-    this.orbiters = updatedAgents;
+    await this.updateOrbiters();
     this.steps++;
   }
 
@@ -112,16 +95,67 @@ export class OrbitWorld {
     metaballs.push({
       kind: MetaballKind.QUADRATIC,
       position: [0, 0],
-      radius: this.originMass
+      radius: this.originMass,
     });
     for (const agent of this.orbiters) {
       metaballs.push({
         kind: MetaballKind.QUADRATIC,
         position: agent.state.position,
-        radius: agent.state.mass
+        radius: agent.state.mass,
       });
     }
     return metaballs;
+  }
+
+  private async updateOrbiters() {
+    const agentInputs: Array<RL.Outcome<ThrustAction>> = [];
+    for (const orbiter of this.orbiters) {
+      const agentInput: RL.Outcome<ThrustAction> = {
+        situation: { state: this.agentObservation(orbiter.state) },
+      };
+      if ('lastAction' in orbiter) {
+        agentInput.lastAction = orbiter.lastAction;
+        // agentInput.reward = -l2(orbiter.state.velocity);
+        agentInput.reward =
+          // 1 -
+          // this.eccentricity(orbiter.state.position, orbiter.state.velocity) -
+          // Math.abs(l2(orbiter.state.velocity) - 0.1) / 0.05 -
+          -Math.abs(l2(orbiter.state.position) - 0.4) / 0.15;
+      }
+      agentInputs.push(agentInput);
+    }
+    const reactions = await this.agent.reactAll(agentInputs);
+    for (let i = 0; i < this.orbiters.length; i++) {
+      const orbiter = this.orbiters[i];
+      const reaction = reactions[i];
+      orbiter.lastAction = reaction.action;
+
+      let thrustAcc: Vec2;
+      const maxVelocity = this.escapeVelocity(orbiter.state.position) - 0.05;
+      if (
+        reaction.action.action === ThrustAction.Forward &&
+        l2(orbiter.state.velocity) < maxVelocity
+      ) {
+        thrustAcc = scale(unitVector(orbiter.state.velocity), 0.05);
+      } else if (reaction.action.action === ThrustAction.Reverse) {
+        thrustAcc = scale(unitVector(orbiter.state.velocity), -0.05);
+      } else {
+        thrustAcc = [0, 0];
+      }
+
+      const newVelocity = add(
+        orbiter.state.velocity,
+        scale(this.gravityVector(orbiter.state.position), this.timeStepSize),
+        thrustAcc
+      );
+      const deltaPosition = scale(newVelocity, this.timeStepSize);
+      const newPosition = add(orbiter.state.position, deltaPosition);
+      orbiter.state = {
+        mass: orbiter.state.mass,
+        position: newPosition,
+        velocity: newVelocity,
+      };
+    }
   }
 
   private gravParam(): number {
@@ -136,6 +170,12 @@ export class OrbitWorld {
     const radius = l2(position);
     const gravityMagnitude = this.gravParam() / (radius * radius);
     return scale(unitVector(position), -1 * gravityMagnitude);
+  }
+
+  private escapeVelocity(position: Vec2): number {
+    return Math.sqrt(
+      (2 * GRAVITATIONAL_CONSTANT * this.originMass) / l2(position)
+    );
   }
 
   private eccentricity(position: Vec2, velocity: Vec2): number {
@@ -167,53 +207,53 @@ export class OrbitWorld {
    * @param otherAgents All the agents besides this one.
    * @returns A tuple of the updated AgentState and the immediate reward.
    */
-  private async nextAgentState(
-    agent: OrbitAgent,
-    secondsSinceLast: number,
-    // otherAgents: AgentState[]
-  ): Promise<AgentState> {
-    const eccentricity: number = this.eccentricity(
-      agent.state.position,
-      agent.state.velocity
-    );
+  // private async nextAgentState(
+  //   agent: OrbitAgent,
+  //   secondsSinceLast: number,
+  //   // otherAgents: AgentState[]
+  // ): Promise<AgentState> {
+  //   const eccentricity: number = this.eccentricity(
+  //     agent.state.position,
+  //     agent.state.velocity
+  //   );
 
-    let reaction: RL.Reaction<ThrustAction>;
-    const situation: RL.Situation = {
-      state: this.agentObservation(agent.state)
-    };
-    if ('lastAction' in agent) {
-      reaction = await agent.agent.react({
-        situation: situation,
-        lastAction: agent.lastAction,
-        reward: -l2(agent.state.velocity)
-        // reward: 1 - eccentricity
-      });
-    } else {
-      reaction = await agent.agent.react(situation);
-    }
-    agent.lastAction = reaction.action;
+  //   let reaction: RL.Reaction<ThrustAction>;
+  //   const situation: RL.Situation = {
+  //     state: this.agentObservation(agent.state)
+  //   };
+  //   if ('lastAction' in agent) {
+  //     reaction = await agent.agent.react({
+  //       situation: situation,
+  //       lastAction: agent.lastAction,
+  //       // reward: -l2(agent.state.velocity)
+  //       reward: 1 - eccentricity
+  //     });
+  //   } else {
+  //     reaction = await agent.agent.react(situation);
+  //   }
+  //   agent.lastAction = reaction.action;
 
-    let thrustAcc: Vec2;
-    if (reaction.action.action === ThrustAction.Forward) {
-      thrustAcc = scale(unitVector(agent.state.velocity), 0.05);
-    } else if (reaction.action.action === ThrustAction.Reverse) {
-      thrustAcc = scale(unitVector(agent.state.velocity), -0.05);
-    } else {
-      thrustAcc = [0, 0];
-    }
+  //   let thrustAcc: Vec2;
+  //   if (reaction.action.action === ThrustAction.Forward) {
+  //     thrustAcc = scale(unitVector(agent.state.velocity), 0.05);
+  //   } else if (reaction.action.action === ThrustAction.Reverse) {
+  //     thrustAcc = scale(unitVector(agent.state.velocity), -0.05);
+  //   } else {
+  //     thrustAcc = [0, 0];
+  //   }
 
-    const newVelocity = add(
-      agent.state.velocity,
-      scale(this.gravityVector(agent.state.position), secondsSinceLast),
-      thrustAcc
-    );
-    const deltaPosition = scale(newVelocity, secondsSinceLast);
-    const newPosition = add(agent.state.position, deltaPosition);
+  //   const newVelocity = add(
+  //     agent.state.velocity,
+  //     scale(this.gravityVector(agent.state.position), secondsSinceLast),
+  //     thrustAcc
+  //   );
+  //   const deltaPosition = scale(newVelocity, secondsSinceLast);
+  //   const newPosition = add(agent.state.position, deltaPosition);
 
-    return {
-      ...agent.state,
-      position: newPosition,
-      velocity: newVelocity
-    };
-  }
+  //   return {
+  //     ...agent.state,
+  //     position: newPosition,
+  //     velocity: newVelocity
+  //   };
+  // }
 }

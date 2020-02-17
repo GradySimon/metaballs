@@ -10,20 +10,31 @@
     "inlineSourceMap": true,
     "noFallthroughCasesInSwitch": true,
     "noImplicitReturns": true,
-    "noUnusedLocals": true,
-    "noUnusedParameters": true,
+    "noUnusedLocals": false,
+    "noUnusedParameters": false,
     "noImplicitAny": true,
     "noImplicitThis": false,
-    "lib": ["es2015", "es2016", "dom"],
+    "lib": [
+      "es2015",
+      "es2016",
+      "dom"
+    ],
     "outDir": "../dist",
     "strictNullChecks": false,
-    "typeRoots": ["./node_modules/@types"]
+    "typeRoots": [
+      "./node_modules/@types"
+    ]
   },
   "defaultSeverity": "error",
   "parcel-plugin-typescript": {
     // If true type-checking is disabled
     "transpileOnly": false
   },
-  "include": ["src/**/*", "webpack.config.js"],
-  "exclude": ["node_modules"]
+  "include": [
+    "src/**/*",
+    "webpack.config.js"
+  ],
+  "exclude": [
+    "node_modules"
+  ]
 }
