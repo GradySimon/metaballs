@@ -9,8 +9,10 @@ import {
 } from './common-types';
 import { Metaball, MetaballKind } from './metaball';
 import * as RL from './rl';
+import { Agent } from 'http';
+import _ = require('lodash');
 
-interface AgentState {
+interface OrbitState {
   position: Vec2;
   velocity: Vec2;
   mass: number;
@@ -22,7 +24,7 @@ enum ThrustAction {
   Reverse,
 }
 
-const randomAgentState = (): AgentState => {
+const randomAgentState = (): OrbitState => {
   return {
     position: [Math.random() * 1.8 - 0.9, Math.random() * 1.8 - 0.9],
     velocity: [Math.random() * 0.5 - 0.25, Math.random() * 0.5 - 0.25],
@@ -31,9 +33,12 @@ const randomAgentState = (): AgentState => {
 };
 
 interface OrbitAgent {
-  agent: RL.Agent<ThrustAction>;
-  state: AgentState;
+  state: OrbitState;
   lastAction?: RL.ActionProp<ThrustAction>;
+}
+
+interface DemoAgent extends OrbitAgent {
+  pendingInput?: ThrustAction;
 }
 
 const GRAVITATIONAL_CONSTANT = 0.7;
@@ -60,6 +65,7 @@ export class OrbitWorld {
   private steps: number = 0;
   private agent?: RL.Agent<ThrustAction>;
   private orbiters: OrbitAgent[] = [];
+  private demoOrbiter: DemoAgent;
   constructor() {
     //
   }
@@ -74,11 +80,27 @@ export class OrbitWorld {
     await this.agent.init();
     for (let i = 0; i < numAgents; i++) {
       const orbiter: OrbitAgent = {
-        agent: this.agent,
         state: randomAgentState(),
       };
       this.orbiters.push(orbiter);
     }
+    this.demoOrbiter = {
+      state: randomAgentState(),
+    };
+    window.addEventListener('keydown', (e: KeyboardEvent) => {
+      switch (e.code) {
+        case 'KeyW': {
+          console.log('Demo orbiter thrusting forward');
+          this.demoOrbiter.pendingInput = ThrustAction.Forward;
+          break;
+        }
+        case 'KeyS': {
+          console.log('Demo orbiter thrusting in reverse');
+          this.demoOrbiter.pendingInput = ThrustAction.Reverse;
+          break;
+        }
+      }
+    });
   }
 
   public async step() {
@@ -104,58 +126,87 @@ export class OrbitWorld {
         radius: agent.state.mass,
       });
     }
+    metaballs.push({
+      kind: MetaballKind.LINEAR,
+      position: this.demoOrbiter.state.position,
+      radius: this.demoOrbiter.state.mass,
+    });
     return metaballs;
   }
 
-  private async updateOrbiters() {
-    const agentInputs: Array<RL.Outcome<ThrustAction>> = [];
-    for (const orbiter of this.orbiters) {
-      const agentInput: RL.Outcome<ThrustAction> = {
-        situation: { state: this.agentObservation(orbiter.state) },
-      };
-      if ('lastAction' in orbiter) {
-        agentInput.lastAction = orbiter.lastAction;
-        // agentInput.reward = -l2(orbiter.state.velocity);
-        agentInput.reward =
-          // 1 -
-          // this.eccentricity(orbiter.state.position, orbiter.state.velocity) -
-          // Math.abs(l2(orbiter.state.velocity) - 0.1) / 0.05 -
-          -Math.abs(l2(orbiter.state.position) - 0.4) / 0.15;
-      }
-      agentInputs.push(agentInput);
+  private getOutcome(orbiter: OrbitAgent): RL.Outcome<ThrustAction> {
+    const agentInput: RL.Outcome<ThrustAction> = {
+      situation: { state: this.agentObservation(orbiter.state) },
+    };
+    if ('lastAction' in orbiter) {
+      agentInput.lastAction = orbiter.lastAction;
+      // agentInput.reward = -l2(orbiter.state.velocity);
+      agentInput.reward =
+        // 1 -
+        -this.eccentricity(orbiter.state.position, orbiter.state.velocity);
+      // Math.abs(l2(orbiter.state.velocity) - 0.1) / 0.05 -
+      // -Math.abs(l2(orbiter.state.position) - 0.4) / 0.15;
     }
+    return agentInput;
+  }
+
+  private async updateOrbiters() {
+    const agentInputs = this.orbiters.map((a) => this.getOutcome(a));
+    const demoInput = this.getOutcome(this.demoOrbiter);
+    agentInputs.push(demoInput);
     const reactions = await this.agent.reactAll(agentInputs);
+    const agentReactions = _.dropRight(reactions);
     for (let i = 0; i < this.orbiters.length; i++) {
       const orbiter = this.orbiters[i];
-      const reaction = reactions[i];
+      const reaction = agentReactions[i];
       orbiter.lastAction = reaction.action;
 
-      let thrustAcc: Vec2;
-      const maxVelocity = this.escapeVelocity(orbiter.state.position) - 0.05;
-      if (
-        reaction.action.action === ThrustAction.Forward &&
-        l2(orbiter.state.velocity) < maxVelocity
-      ) {
-        thrustAcc = scale(unitVector(orbiter.state.velocity), 0.05);
-      } else if (reaction.action.action === ThrustAction.Reverse) {
-        thrustAcc = scale(unitVector(orbiter.state.velocity), -0.05);
-      } else {
-        thrustAcc = [0, 0];
-      }
-
-      const newVelocity = add(
-        orbiter.state.velocity,
-        scale(this.gravityVector(orbiter.state.position), this.timeStepSize),
-        thrustAcc
+      orbiter.state = this.updateOrbiterState(
+        orbiter.state,
+        reaction.action.action
       );
-      const deltaPosition = scale(newVelocity, this.timeStepSize);
-      const newPosition = add(orbiter.state.position, deltaPosition);
-      orbiter.state = {
-        mass: orbiter.state.mass,
-        position: newPosition,
-        velocity: newVelocity,
-      };
     }
+    const demoAction = this.demoOrbiter.pendingInput || ThrustAction.None;
+    this.demoOrbiter.pendingInput = null;
+    this.demoOrbiter.lastAction = {
+      action: demoAction,
+      state: demoInput.situation.state,
+    };
+    this.demoOrbiter.state = this.updateOrbiterState(
+      this.demoOrbiter.state,
+      demoAction
+    );
+  }
+
+  private updateOrbiterState(
+    orbitState: OrbitState,
+    action: ThrustAction
+  ): OrbitState {
+    const maxVelocity = this.escapeVelocity(orbitState.position) - 0.05;
+    let thrustAcc: Vec2;
+    if (
+      action === ThrustAction.Forward &&
+      l2(orbitState.velocity) < maxVelocity
+    ) {
+      thrustAcc = scale(unitVector(orbitState.velocity), 0.05);
+    } else if (action === ThrustAction.Reverse) {
+      thrustAcc = scale(unitVector(orbitState.velocity), -0.05);
+    } else {
+      thrustAcc = [0, 0];
+    }
+
+    const newVelocity = add(
+      orbitState.velocity,
+      scale(this.gravityVector(orbitState.position), this.timeStepSize),
+      thrustAcc
+    );
+    const deltaPosition = scale(newVelocity, this.timeStepSize);
+    const newPosition = add(orbitState.position, deltaPosition);
+    return {
+      mass: orbitState.mass,
+      position: newPosition,
+      velocity: newVelocity,
+    };
   }
 
   private gravParam(): number {
@@ -188,7 +239,7 @@ export class OrbitWorld {
     return l2(subtract(scaledPosition, scaledVelocity));
   }
 
-  private agentObservation(agent: AgentState) {
+  private agentObservation(agent: OrbitState) {
     const observation = [];
     observation.push(
       agent.velocity[0],
