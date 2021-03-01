@@ -9,7 +9,7 @@
     "@types/lodash": "^4.14.149",
     "lodash": "^4.17.15",
     "seedrandom": "~2.4.3",
-    "three": "^0.110.0"
+    "three": "^0.125.0"
   },
   "devDependencies": {
     "@babel/core": "^7.7.5",
